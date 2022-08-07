@@ -3,37 +3,60 @@ import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
 import { Html } from "react-konva-utils";
 import { Border } from "./Border";
 import { Anchor } from "./Anchor";
+import "./App.css";
 
 const App = () => {
 	const [selectedStep, setSelectedStep] = useState(null);
 	const [connectionPreview, setConnectionPreview] = useState(null);
-	const [connections, setConnections] = useState([]);
-	const initSteps = [
-		{
-			x: 50,
-			y: 50,
-			colour: "#b9d7d9",
-			anchors: [],
-		},
-		{
-			x: 200,
-			y: 200,
-			colour: "#b9d7d9",
-			anchors: [],
-		},
-		{
-			x: 400,
-			y: 50,
-			colour: "#b9d7d9",
-			anchors: [],
-		},
-	];
+	const [connections, setConnections] = useState(
+		localStorage.getItem("connections") !== null
+			? JSON.parse(localStorage.getItem("connections"))
+			: [],
+	);
+	const initSteps =
+		localStorage.getItem("steps") !== null
+			? JSON.parse(localStorage.getItem("steps"))
+			: [
+					{
+						id: 0,
+						x: Math.random() * 0.75 * window.innerWidth,
+						y: Math.random() * 0.75 * window.innerHeight,
+						colour: "#b9d7d9",
+						anchors: [],
+					},
+					{
+						id: 1,
+						x: Math.random() * 0.75 * window.innerWidth,
+						y: Math.random() * 0.75 * window.innerHeight,
+						colour: "#b9d7d9",
+						anchors: [],
+					},
+					{
+						id: 2,
+						x: Math.random() * 0.75 * window.innerWidth,
+						y: Math.random() * 0.75 * window.innerHeight,
+						colour: "#b9d7d9",
+						anchors: [],
+					},
+			  ];
 	const [steps, setSteps] = useState(initSteps);
 	const [activeCallback, setActiveCallback] = useState(false);
+	const [deleteBtnPressed, setDeleteBtnPressed] = useState(false);
+	const [showDeleteBtn, setShowDeleteBtn] = useState(false);
+	const [showInfo, setShowInfo] = useState(
+		localStorage.getItem("showInfo") !== null ? JSON.parse(localStorage.getItem("showInfo")) : true,
+	);
 
 	useEffect(() => {
 		setActiveCallback(false);
 	}, [activeCallback]);
+
+	useEffect(() => {
+		document.addEventListener("keydown", removeSelectedStep, true);
+		return () => {
+			document.removeEventListener("keydown", removeSelectedStep, true);
+		};
+	}, [selectedStep]);
 
 	const SIZE = 100;
 	let activeAnchor = null;
@@ -58,9 +81,14 @@ const App = () => {
 
 	const callbackAnchor = (data) => {
 		let updateSteps = steps;
-		const isCopy = updateSteps[data.id].anchors.find((anchor) => anchor.index === data.index);
+		let foundedStep = updateSteps.find((step) => step.id == data.id);
+		const isCopy = foundedStep.anchors.find((anchor) => anchor.index === data.index);
 		if (!isCopy) {
-			updateSteps[data.id].anchors.push(data);
+			updateSteps.find((step) => {
+				if (step.id == data.id) {
+					step.anchors.push(data);
+				}
+			});
 		}
 		setSteps(updateSteps);
 		return setActiveCallback(!activeCallback);
@@ -68,28 +96,30 @@ const App = () => {
 
 	const callbackDeleteAnchor = (data) => {
 		let updateSteps = steps;
-		updateSteps[data.id].anchors = updateSteps[data.id].anchors.filter((anchor) => {
-			if (anchor.index !== data.index) {
-				return true;
-			} else {
-				deleteConnections(data.id, data.index);
-				return false;
+		updateSteps.find((step) => {
+			if (step.id == data.id) {
+				step.anchors = step.anchors.filter((anchor) => {
+					if (anchor.index !== data.index) {
+						return true;
+					} else {
+						deleteConnections(data.id, data.index);
+						return false;
+					}
+				});
 			}
 		});
+		setDeleteBtnPressed(data.deleteBtnPressed);
+		setShowDeleteBtn(false);
 		setSteps(updateSteps);
 		checkWrongConnections("anchor", updateSteps);
 	};
 
 	const addStep = () => {
-		let updateSteps;
-		if (Array.isArray(steps)) {
-			updateSteps = steps;
-		} else {
-			updateSteps = Object.values(steps);
-		}
+		let updateSteps = steps;
 		updateSteps.push({
-			x: 750,
-			y: 750,
+			id: steps.length > 0 ? steps[steps.length - 1].id + 1 : 0,
+			x: Math.random() * 0.75 * window.innerWidth,
+			y: Math.random() * 0.75 * window.innerHeight,
 			colour: "#b9d7d9",
 			anchors: [],
 		});
@@ -98,18 +128,31 @@ const App = () => {
 	};
 
 	const removeStep = () => {
-		let updateSteps;
-		if (Array.isArray(steps)) {
-			updateSteps = steps;
-		} else {
-			updateSteps = Object.values(steps);
-		}
+		let updateSteps = steps;
 		if (updateSteps.length > 0) {
 			updateSteps.pop();
 		}
 		setSteps(updateSteps);
 		setSelectedStep(null);
 		checkWrongConnections("step", updateSteps);
+	};
+
+	const removeSelectedStep = (e) => {
+		if (e.key === "Delete" && selectedStep) {
+			let updateSteps = steps;
+
+			updateSteps = updateSteps.filter((step) => step.id != selectedStep);
+			checkWrongConnections("step", updateSteps);
+			setSteps(updateSteps);
+			setSelectedStep(null);
+		}
+	};
+
+	const removeAllSteps = () => {
+		localStorage.setItem("connections", null);
+		localStorage.setItem("steps", null);
+		setSelectedStep(null);
+		setSteps([]);
 	};
 
 	// Functions to correct render objects
@@ -127,13 +170,10 @@ const App = () => {
 
 	function checkWrongConnections(type, typeSteps) {
 		let updateConnections = connections;
-		if (!Array.isArray(steps)) {
-			typeSteps = Object.values(typeSteps);
-		}
 		if (type === "anchor") {
 			updateConnections = updateConnections.filter((connection) => {
-				let connectionFromStep = typeSteps.find((step, index) => index == connection.from.id);
-				let connectionToStep = typeSteps.find((step, index) => index == connection.to.id);
+				let connectionFromStep = typeSteps.find((step) => step.id == connection.from.id);
+				let connectionToStep = typeSteps.find((step) => step.id == connection.to.id);
 				let connectionFromAnchor = connectionFromStep.anchors.find(
 					(anch) => anch.index == connection.from.index,
 				);
@@ -145,14 +185,9 @@ const App = () => {
 		}
 		if (type === "step") {
 			updateConnections = updateConnections.filter((connection) => {
-				return (
-					typeSteps.some((step, stepIndex) => {
-						return connection.from.id == stepIndex;
-					}) &&
-					typeSteps.some((step, stepIndex) => {
-						return connection.to.id == stepIndex;
-					})
-				);
+				let connectionFromStep = typeSteps.find((step) => step.id == connection.from.id);
+				let connectionToStep = typeSteps.find((step) => step.id == connection.to.id);
+				return connectionFromStep && connectionToStep;
 			});
 		}
 		if (updateConnections.length !== connections.length) {
@@ -178,9 +213,11 @@ const App = () => {
 			default:
 		}
 
-		if (Object.values(steps)[objId].x !== anchX || Object.values(steps)[objId].y !== anchY) {
-			anchX = Object.values(steps)[objId].x + SIZE / 2;
-			anchY = Object.values(steps)[objId].y + SIZE / 2;
+		let correctStep = steps.find((step) => step.id == objId);
+
+		if (correctStep.x !== anchX || correctStep.y !== anchY) {
+			anchX = correctStep.x + SIZE / 2;
+			anchY = correctStep.y + SIZE / 2;
 		}
 
 		switch (anchIndex) {
@@ -225,8 +262,8 @@ const App = () => {
 	}
 
 	function detectConnection(position, id, steps) {
-		const intersectingStep = Object.keys(steps).find((key) => {
-			return key !== id && hasIntersection(position, steps[key], key);
+		const intersectingStep = steps.find((step) => {
+			return step.id !== id && hasIntersection(position, step, step.id);
 		});
 		if (intersectingStep) {
 			return intersectingStep;
@@ -252,18 +289,20 @@ const App = () => {
 		}
 	}
 
-	function handleStepDrag(e, key) {
+	function handleStepDrag(e, id) {
 		const position = e.target.position();
-		setSteps({
-			...steps,
-			[key]: {
-				...steps[key],
-				...position,
-			},
+		let updateSteps = steps;
+		updateSteps.find((step) => {
+			if (step.id == id) {
+				step.x = position.x;
+				step.y = position.y;
+			}
 		});
+		setSteps(updateSteps);
+		return setActiveCallback(!activeCallback);
 	}
 
-	function handleAnchorDragStart(e, id, index) {
+	function handleAnchorDragStart(e) {
 		const position = e.target.position();
 		setConnectionPreview(
 			<Line
@@ -276,7 +315,7 @@ const App = () => {
 		);
 	}
 
-	function handleAnchorDragMove(e, id) {
+	function handleAnchorDragMove(e) {
 		const position = e.target.position();
 		const mousePos = getMousePos(e);
 		setConnectionPreview(
@@ -310,23 +349,45 @@ const App = () => {
 		}
 	}
 
+	function changeSelectToAnchor(value, anchorSelected) {
+		if (!anchorSelected) {
+			setShowDeleteBtn(true);
+		} else {
+			setShowDeleteBtn(false);
+		}
+		setSelectedStep(value);
+	}
+
 	// Objects
 
-	const stepObjs = Object.keys(steps).map((key) => {
-		const { x, y, colour } = steps[key];
+	const stepObjs = steps.map((step, index) => {
+		const x = step.x;
+		const y = step.y;
+		const colour = step.colour;
+		const id = step.id;
 		return (
 			<Group
-				key={key}
+				key={`${id}-${index}`}
 				x={x}
 				y={y}
-				onClick={() => handleSelection(key)}
+				onClick={() => handleSelection(id)}
 				draggable
-				onDragMove={(e) => handleStepDrag(e, key)}>
-				<Rect width={SIZE} height={SIZE} fill={colour} perfectDrawEnabled={false} />
+				onDragMove={(e) => handleStepDrag(e, id)}>
+				<Rect
+					key={`${id}-${index}`}
+					width={SIZE}
+					height={SIZE}
+					fill={colour}
+					perfectDrawEnabled={false}
+					shadowColor="rgba(55, 160, 181, 0.3)"
+					shadowBlur={10}
+				/>
 				<Text
-					text={key}
+					text={id}
 					fill="#ffffff"
 					fontSize={40}
+					fontFamily="'Inter'"
+					fontVariant="700"
 					x={0}
 					y={0}
 					lineHeight={2.5}
@@ -337,13 +398,13 @@ const App = () => {
 		);
 	});
 
-	const activeAnchors = Object.keys(steps).map((key) => {
-		const { anchors } = steps[key];
+	const activeAnchors = steps.map((step) => {
+		const anchors = step.anchors;
 		return anchors.map((position) => (
 			<Anchor
-				key={`${position.id}-anchor-${position.index}`}
+				key={`${position.id}-anchor-${position.index}-${position.x}-${position.y}`}
 				id={position.id}
-				step={steps[position.id]}
+				step={steps.find((step) => step.id == position.id)}
 				index={position.index}
 				onDragEnd={(e) =>
 					handleAnchorDragEnd(e, position.id, position.index, position.x, position.y)
@@ -352,6 +413,8 @@ const App = () => {
 				onDragStart={handleAnchorDragStart}
 				onDelete={callbackDeleteAnchor}
 				isActive={true}
+				changeSelect={changeSelectToAnchor}
+				deleteBtnPressed={deleteBtnPressed}
 			/>
 		));
 	});
@@ -359,8 +422,12 @@ const App = () => {
 	const connectionObjs = connections.map((connection) => {
 		const anchorFromStep = connection.from;
 		const anchorToStep = connection.to;
-		const fromStep = steps[connection.from.id];
-		const toStep = steps[connection.to.id];
+		const fromStep = steps.find((step) => step.id == connection.from.id);
+		const toStep = steps.find((step) => step.id == connection.to.id);
+
+		if (!toStep || !fromStep) {
+			return <></>;
+		}
 
 		let fromStartX = 0;
 		let fromStartY = 0;
@@ -424,8 +491,18 @@ const App = () => {
 
 	const borders =
 		selectedStep !== null ? (
-			<Border id={selectedStep} step={steps[selectedStep]} getActiveAnchors={callbackAnchor} />
+			<Border
+				key={selectedStep}
+				id={selectedStep}
+				step={steps.find((step) => step.id == selectedStep)}
+				getActiveAnchors={callbackAnchor}
+			/>
 		) : null;
+
+	// Save to localStorage
+	localStorage.setItem("steps", JSON.stringify(steps));
+	steps.length > 0 && localStorage.setItem("connections", JSON.stringify(connections));
+	localStorage.setItem("showInfo", JSON.stringify(showInfo));
 
 	// Render
 
@@ -438,16 +515,43 @@ const App = () => {
 				{connectionPreview}
 				{activeAnchors}
 				<Text text={activeCallback} opacity={0} />
-				<Html
-					divProps={{
-						style: {
-							position: "absolute",
-							top: 10,
-							left: 10,
-						},
-					}}>
-					<button onClick={addStep}>+</button>
-					<button onClick={removeStep}>-</button>
+				<Html>
+					<div className="flex">
+						<button onClick={addStep} className="inc-btn">
+							<span className="plus">+</span>
+						</button>
+						<span className="count">{steps.length}</span>
+						<button onClick={removeStep} className="inc-btn">
+							<span className="minus">-</span>
+						</button>
+					</div>
+					<div className="flex column">
+						<button onClick={removeAllSteps} className="remove-all">
+							Очистить всё
+						</button>
+						{showDeleteBtn && (
+							<button onClick={() => setDeleteBtnPressed(true)} className="remove-all">
+								Удалить выбранные розетки
+							</button>
+						)}
+					</div>
+					{showInfo && (
+						<div className="info">
+							<button className="close" onClick={() => setShowInfo(false)}>
+								<span>✖</span>
+							</button>
+							<ul>
+								<li>Кликните по квадрату, чтобы его выделить.</li>
+								<li>
+									Для создания розетки, нажмите на любой появившийся вариант из четырёх при
+									выделении квадрата.
+								</li>
+								<li>На появившуюся розетку можно нажать, чтобы выделить её для удаления.</li>
+								<li>Удерживайте розетку, чтобы построить путь до другой.</li>
+								<li>Чтобы перетащить квадрат, удерживайте курсор на нём.</li>
+							</ul>
+						</div>
+					)}
 				</Html>
 			</Layer>
 		</Stage>

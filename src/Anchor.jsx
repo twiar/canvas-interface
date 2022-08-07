@@ -23,6 +23,8 @@ export function Anchor({
 	onClick,
 	onDelete,
 	isActive,
+	changeSelect,
+	deleteBtnPressed,
 }) {
 	const SIZE = 100;
 	const halfSize = SIZE / 2;
@@ -72,7 +74,11 @@ export function Anchor({
 			onDragEnd: onDragEnd,
 			onDragStart: onDragStart,
 			index: index,
+			deleteBtnPressed: false,
 		});
+	};
+	const offBorder = () => {
+		changeSelect(null, isSelected);
 	};
 	const [isSelected, setIsSelected] = useState(false);
 
@@ -86,12 +92,16 @@ export function Anchor({
 	function select(e) {
 		if (e.type === "click") {
 			setIsSelected(!isSelected);
+			offBorder();
 		}
 		if (e.key === "Delete" && isSelected) {
 			deleteActiveAnchor();
 		}
 	}
 
+	if (deleteBtnPressed && isSelected) {
+		deleteActiveAnchor();
+	}
 	return isActive ? (
 		<Circle
 			radius={10}
