@@ -154,6 +154,7 @@ const App = () => {
 		localStorage.setItem("connections", null);
 		localStorage.setItem("steps", null);
 		setSelectedStep(null);
+		setConnections([]);
 		setSteps([]);
 	};
 
