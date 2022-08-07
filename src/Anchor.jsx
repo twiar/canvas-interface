@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Circle, Text, Group } from "react-konva";
 
 function dragBounds(ref) {
@@ -21,6 +21,7 @@ export function Anchor({
 	step,
 	index,
 	onClick,
+	onDelete,
 	isActive,
 }) {
 	const SIZE = 100;
@@ -62,6 +63,31 @@ export function Anchor({
 			index: index,
 		});
 	};
+	const deleteActiveAnchor = () => {
+		onDelete({
+			x: x,
+			y: y,
+			id: id,
+			onDragMove: onDragMove,
+			onDragEnd: onDragEnd,
+			onDragStart: onDragStart,
+			index: index,
+		});
+	};
+	const [isSelected, setIsSelected] = useState(false);
+
+	useEffect(() => {
+		document.addEventListener("keydown", select, true);
+	}, [isSelected]);
+
+	function select(e) {
+		if (e.type === "click") {
+			setIsSelected(!isSelected);
+		}
+		if (e.key === "Delete" && isSelected) {
+			deleteActiveAnchor();
+		}
+	}
 
 	return isActive ? (
 		<Circle
@@ -76,6 +102,9 @@ export function Anchor({
 			dragBoundFunc={() => dragBounds(anchor)}
 			perfectDrawEnabled={false}
 			ref={anchor}
+			onClick={select}
+			stroke="#9e0c39"
+			strokeWidth={isSelected ? 2 : 0}
 		/>
 	) : (
 		<Group

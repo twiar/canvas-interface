@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
 import { Border } from "./Border";
 import { Anchor } from "./Anchor";
@@ -7,7 +7,6 @@ const App = () => {
 	const [selectedStep, setSelectedStep] = useState(null);
 	const [connectionPreview, setConnectionPreview] = useState(null);
 	const [connections, setConnections] = useState([]);
-	const [detectedAnchor, setDetectedAnchor] = useState(null);
 	const initSteps = [
 		{
 			x: 50,
@@ -36,28 +35,116 @@ const App = () => {
 	}, [activeCallback]);
 
 	const SIZE = 100;
-	let activeAnchor = {};
+	let activeAnchor = null;
 
 	function createConnectionPoints(source, destination) {
 		return [source.x, source.y, destination.x, destination.y];
 	}
 
-	function anchorIntersection(anchIndex, anchX, anchY, posX, posY) {
-		// console.log(anchIndex);
-		// console.log(anchX > posX);
-		// console.log(anchX < posX);
-		// console.log(anchY > posY);
-		// console.log(anchY < posY);
-		return !(anchX - 20 > posX || anchX + 20 < posX || anchY - 20 > posY || anchY + 20 < posY);
+	function isClosedAnchors(objId, index) {
+		return Boolean(
+			connections.some((connections) => {
+				return (
+					(connections.from.index === index && connections.from.id === objId) ||
+					(connections.to.index === index && connections.to.id === objId)
+				);
+			}),
+		);
+	}
+
+	function deleteConnections(objId, index) {
+		let updateConnections = connections;
+		updateConnections = updateConnections.filter((connection) => {
+			return !(
+				(connection.from.id === objId && connection.from.index === index) ||
+				(connection.to.id === objId && connection.to.index === index)
+			);
+		});
+		setConnections(updateConnections);
+		return setActiveCallback(true);
+	}
+
+	function checkWrongConnections() {
+		let updateConnections = connections;
+		let checkSteps;
+		if (Array.isArray(steps)) {
+			checkSteps = steps;
+		} else {
+			checkSteps = Object.values(steps);
+		}
+		updateConnections = updateConnections.filter((connection) =>
+			checkSteps.some((step) => {
+				if (step.anchors) {
+					return step.anchors.some(
+						(anch) =>
+							(connection.from.id === anch.id && connection.from.index === anch.index) ||
+							(connection.to.id === anch.id && connection.to.index === anch.index),
+					);
+				} else {
+					return false;
+				}
+			}),
+		);
+		if (updateConnections.length !== connections.length) {
+			setConnections(updateConnections);
+		}
+	}
+
+	function checkCorrectAnchorPosition(objId, anchIndex, anchX, anchY) {
+		switch (anchIndex) {
+			case 0:
+				anchX = anchX + SIZE / 2;
+				break;
+			case 1:
+				anchY = anchY + SIZE / 2;
+				break;
+			case 2:
+				anchX = anchX - SIZE / 2;
+				break;
+			case 3:
+				anchY = anchY - SIZE / 2;
+				break;
+			default:
+		}
+
+		if (Object.values(steps)[objId].x !== anchX || Object.values(steps)[objId].y !== anchY) {
+			anchX = Object.values(steps)[objId].x + SIZE / 2;
+			anchY = Object.values(steps)[objId].y + SIZE / 2;
+		}
+
+		switch (anchIndex) {
+			case 0:
+				anchX = anchX - SIZE / 2;
+				break;
+			case 1:
+				anchY = anchY - SIZE / 2;
+				break;
+			case 2:
+				anchX = anchX + SIZE / 2;
+				break;
+			case 3:
+				anchY = anchY + SIZE / 2;
+				break;
+			default:
+		}
+
+		return [anchX, anchY];
+	}
+
+	function anchorIntersection(objId, anchIndex, anchX, anchY, posX, posY) {
+		const anchPos = checkCorrectAnchorPosition(objId, anchIndex, anchX, anchY);
+		anchX = anchPos[0];
+		anchY = anchPos[1];
+		if (!isClosedAnchors(objId, anchIndex)) {
+			return !(anchX - 20 > posX || anchX + 20 < posX || anchY - 20 > posY || anchY + 20 < posY);
+		}
 	}
 
 	function hasIntersection(position, step, key) {
 		if (step.anchors.length > 0) {
 			return step.anchors.some((anch) => {
-				if (anchorIntersection(anch.index, anch.x, anch.y, position.x, position.y)) {
-					// console.log(1);
+				if (anchorIntersection(key, anch.index, anch.x, anch.y, position.x, position.y)) {
 					activeAnchor = { id: key, x: anch.x, y: anch.y, index: anch.index };
-					// console.log(activeAnchor);
 					return true;
 				}
 			});
@@ -137,14 +224,14 @@ const App = () => {
 		const stage = e.target.getStage();
 		const mousePos = stage.getPointerPosition();
 		const connectionTo = detectConnection(mousePos, id, steps);
-		const toAnchor = activeAnchor;
-		// console.log(connectionTo);
-		// console.log(activeAnchor);
-		if (connectionTo !== null && toAnchor !== null) {
+		if (isClosedAnchors(id, index)) {
+			activeAnchor = null;
+		}
+		if (connectionTo !== null && activeAnchor !== null) {
 			setConnections([
 				...connections,
 				{
-					to: toAnchor,
+					to: activeAnchor,
 					from: { id, index, x, y },
 				},
 			]);
@@ -156,6 +243,21 @@ const App = () => {
 		let updateSteps = steps;
 		updateSteps[data.id].anchors.push(data);
 		setSteps(updateSteps);
+		return setActiveCallback(!activeCallback);
+	};
+
+	const callbackDeleteAnchor = (data) => {
+		let updateSteps = steps;
+		updateSteps[data.id].anchors = updateSteps[data.id].anchors.filter((anchor) => {
+			if (anchor.index !== data.index) {
+				return true;
+			} else {
+				deleteConnections(data.id, anchor.index);
+				return false;
+			}
+		});
+		setSteps(updateSteps);
+		checkWrongConnections();
 		return setActiveCallback(true);
 	};
 
@@ -183,17 +285,17 @@ const App = () => {
 				id={position.id}
 				step={steps[position.id]}
 				index={position.index}
-				x={position.x}
-				y={position.y}
 				onDragEnd={(e) =>
 					handleAnchorDragEnd(e, position.id, position.index, position.x, position.y)
 				}
 				onDragMove={handleAnchorDragMove}
 				onDragStart={handleAnchorDragStart}
+				onDelete={callbackDeleteAnchor}
 				isActive={true}
 			/>
 		));
 	});
+
 	const connectionObjs = connections.map((connection) => {
 		const anchorFromStep = connection.from;
 		const anchorToStep = connection.to;
@@ -204,8 +306,6 @@ const App = () => {
 		let fromStartY = 0;
 		let toStartX = 0;
 		let toStartY = 0;
-
-		// console.log(anchorFromStep);
 
 		switch (anchorFromStep.index) {
 			case 0:
@@ -249,9 +349,10 @@ const App = () => {
 				y: toStep.y - fromStep.y + toStartY,
 			},
 		);
-		// console.log(points);
+
 		return (
 			<Line
+				key={`${connection.from.id}-${anchorFromStep.index}-${fromStartX}${fromStartY}-${anchorToStep.index}-${toStartX}${toStartY}-${connection.to.id}`}
 				x={fromStep.x + SIZE / 2}
 				y={fromStep.y + SIZE / 2}
 				points={points}
