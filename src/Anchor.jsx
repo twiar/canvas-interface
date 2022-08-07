@@ -78,6 +78,9 @@ export function Anchor({
 
 	useEffect(() => {
 		document.addEventListener("keydown", select, true);
+		return () => {
+			document.removeEventListener("keydown", select, true);
+		};
 	}, [isSelected]);
 
 	function select(e) {

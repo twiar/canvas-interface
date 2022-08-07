@@ -28,7 +28,10 @@ function getAnchorPoints(x, y) {
 	];
 }
 
-export function Border({ step, id, getActiveAnchors, getDeleteAnchors }) {
+export function Border({ step, id, getActiveAnchors }) {
+	if (step == null) {
+		return <></>;
+	}
 	const { x, y } = step;
 	const anchorPoints = getAnchorPoints(x, y);
 

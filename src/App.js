@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Stage, Layer, Rect, Line, Text, Group } from "react-konva";
+import { Html } from "react-konva-utils";
 import { Border } from "./Border";
 import { Anchor } from "./Anchor";
 
@@ -37,9 +38,81 @@ const App = () => {
 	const SIZE = 100;
 	let activeAnchor = null;
 
+	// Functions to manipulate count of objects
+
 	function createConnectionPoints(source, destination) {
 		return [source.x, source.y, destination.x, destination.y];
 	}
+
+	function deleteConnections(objId, objIndex) {
+		let updateConnections = connections;
+		updateConnections = updateConnections.filter((connection) => {
+			return !(
+				(connection.from.id === objId && connection.from.index === objIndex) ||
+				(connection.to.id === objId && connection.to.index === objIndex)
+			);
+		});
+		setConnections(updateConnections);
+		return setActiveCallback(!activeCallback);
+	}
+
+	const callbackAnchor = (data) => {
+		let updateSteps = steps;
+		const isCopy = updateSteps[data.id].anchors.find((anchor) => anchor.index === data.index);
+		if (!isCopy) {
+			updateSteps[data.id].anchors.push(data);
+		}
+		setSteps(updateSteps);
+		return setActiveCallback(!activeCallback);
+	};
+
+	const callbackDeleteAnchor = (data) => {
+		let updateSteps = steps;
+		updateSteps[data.id].anchors = updateSteps[data.id].anchors.filter((anchor) => {
+			if (anchor.index !== data.index) {
+				return true;
+			} else {
+				deleteConnections(data.id, data.index);
+				return false;
+			}
+		});
+		setSteps(updateSteps);
+		checkWrongConnections("anchor", updateSteps);
+	};
+
+	const addStep = () => {
+		let updateSteps;
+		if (Array.isArray(steps)) {
+			updateSteps = steps;
+		} else {
+			updateSteps = Object.values(steps);
+		}
+		updateSteps.push({
+			x: 750,
+			y: 750,
+			colour: "#b9d7d9",
+			anchors: [],
+		});
+		setSteps(updateSteps);
+		return setActiveCallback(!activeCallback);
+	};
+
+	const removeStep = () => {
+		let updateSteps;
+		if (Array.isArray(steps)) {
+			updateSteps = steps;
+		} else {
+			updateSteps = Object.values(steps);
+		}
+		if (updateSteps.length > 0) {
+			updateSteps.pop();
+		}
+		setSteps(updateSteps);
+		setSelectedStep(null);
+		checkWrongConnections("step", updateSteps);
+	};
+
+	// Functions to correct render objects
 
 	function isClosedAnchors(objId, index) {
 		return Boolean(
@@ -52,42 +125,40 @@ const App = () => {
 		);
 	}
 
-	function deleteConnections(objId, index) {
+	function checkWrongConnections(type, typeSteps) {
 		let updateConnections = connections;
-		updateConnections = updateConnections.filter((connection) => {
-			return !(
-				(connection.from.id === objId && connection.from.index === index) ||
-				(connection.to.id === objId && connection.to.index === index)
-			);
-		});
-		setConnections(updateConnections);
-		return setActiveCallback(true);
-	}
-
-	function checkWrongConnections() {
-		let updateConnections = connections;
-		let checkSteps;
-		if (Array.isArray(steps)) {
-			checkSteps = steps;
-		} else {
-			checkSteps = Object.values(steps);
+		if (!Array.isArray(steps)) {
+			typeSteps = Object.values(typeSteps);
 		}
-		updateConnections = updateConnections.filter((connection) =>
-			checkSteps.some((step) => {
-				if (step.anchors) {
-					return step.anchors.some(
-						(anch) =>
-							(connection.from.id === anch.id && connection.from.index === anch.index) ||
-							(connection.to.id === anch.id && connection.to.index === anch.index),
-					);
-				} else {
-					return false;
-				}
-			}),
-		);
+		if (type === "anchor") {
+			updateConnections = updateConnections.filter((connection) => {
+				let connectionFromStep = typeSteps.find((step, index) => index == connection.from.id);
+				let connectionToStep = typeSteps.find((step, index) => index == connection.to.id);
+				let connectionFromAnchor = connectionFromStep.anchors.find(
+					(anch) => anch.index == connection.from.index,
+				);
+				let connectionToAnchor = connectionToStep.anchors.find(
+					(anch) => anch.index == connection.to.index,
+				);
+				return connectionFromStep && connectionToStep && connectionFromAnchor && connectionToAnchor;
+			});
+		}
+		if (type === "step") {
+			updateConnections = updateConnections.filter((connection) => {
+				return (
+					typeSteps.some((step, stepIndex) => {
+						return connection.from.id == stepIndex;
+					}) &&
+					typeSteps.some((step, stepIndex) => {
+						return connection.to.id == stepIndex;
+					})
+				);
+			});
+		}
 		if (updateConnections.length !== connections.length) {
 			setConnections(updateConnections);
 		}
+		return setActiveCallback(!activeCallback);
 	}
 
 	function checkCorrectAnchorPosition(objId, anchIndex, anchX, anchY) {
@@ -239,27 +310,7 @@ const App = () => {
 		}
 	}
 
-	const callbackAnchor = (data) => {
-		let updateSteps = steps;
-		updateSteps[data.id].anchors.push(data);
-		setSteps(updateSteps);
-		return setActiveCallback(!activeCallback);
-	};
-
-	const callbackDeleteAnchor = (data) => {
-		let updateSteps = steps;
-		updateSteps[data.id].anchors = updateSteps[data.id].anchors.filter((anchor) => {
-			if (anchor.index !== data.index) {
-				return true;
-			} else {
-				deleteConnections(data.id, anchor.index);
-				return false;
-			}
-		});
-		setSteps(updateSteps);
-		checkWrongConnections();
-		return setActiveCallback(true);
-	};
+	// Objects
 
 	const stepObjs = Object.keys(steps).map((key) => {
 		const { x, y, colour } = steps[key];
@@ -272,7 +323,16 @@ const App = () => {
 				draggable
 				onDragMove={(e) => handleStepDrag(e, key)}>
 				<Rect width={SIZE} height={SIZE} fill={colour} perfectDrawEnabled={false} />
-				<Text text={key} fill="#ffffff" fontSize={60} x={SIZE / 3} y={SIZE / 4} />
+				<Text
+					text={key}
+					fill="#ffffff"
+					fontSize={40}
+					x={0}
+					y={0}
+					lineHeight={2.5}
+					width={SIZE}
+					align="center"
+				/>
 			</Group>
 		);
 	});
@@ -361,10 +421,13 @@ const App = () => {
 			/>
 		);
 	});
+
 	const borders =
 		selectedStep !== null ? (
 			<Border id={selectedStep} step={steps[selectedStep]} getActiveAnchors={callbackAnchor} />
 		) : null;
+
+	// Render
 
 	return (
 		<Stage width={window.innerWidth} height={window.innerHeight}>
@@ -375,6 +438,17 @@ const App = () => {
 				{connectionPreview}
 				{activeAnchors}
 				<Text text={activeCallback} opacity={0} />
+				<Html
+					divProps={{
+						style: {
+							position: "absolute",
+							top: 10,
+							left: 10,
+						},
+					}}>
+					<button onClick={addStep}>+</button>
+					<button onClick={removeStep}>-</button>
+				</Html>
 			</Layer>
 		</Stage>
 	);
