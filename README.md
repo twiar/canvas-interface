@@ -1,4 +1,6 @@
-# [Open interface](https://twiar.github.io/canvas-interface/)
+# Canvas Interface with Konva.js
+
+## [Open interface](https://twiar.github.io/canvas-interface/)
 
 # Getting Started with Create React App
 
