@@ -116,6 +116,7 @@ export function Anchor({
 			perfectDrawEnabled={false}
 			ref={anchor}
 			onClick={select}
+			onTap={select}
 			stroke="#9e0c39"
 			strokeWidth={isSelected ? 2 : 0}
 		/>
@@ -124,6 +125,9 @@ export function Anchor({
 			x={x}
 			y={y}
 			onClick={() => {
+				addActiveAnchor();
+			}}
+			onTap={() => {
 				addActiveAnchor();
 			}}
 			perfectDrawEnabled={false}

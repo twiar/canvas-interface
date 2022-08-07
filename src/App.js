@@ -371,6 +371,7 @@ const App = () => {
 				x={x}
 				y={y}
 				onClick={() => handleSelection(id)}
+				onTap={() => handleSelection(id)}
 				draggable
 				onDragMove={(e) => handleStepDrag(e, id)}>
 				<Rect
