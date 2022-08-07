@@ -90,7 +90,7 @@ export function Anchor({
 	}, [isSelected]);
 
 	function select(e) {
-		if (e.type === "click") {
+		if (e.type === "click" || e.type === "tap") {
 			setIsSelected(!isSelected);
 			offBorder();
 		}
@@ -102,6 +102,7 @@ export function Anchor({
 	if (deleteBtnPressed && isSelected) {
 		deleteActiveAnchor();
 	}
+
 	return isActive ? (
 		<Circle
 			radius={10}

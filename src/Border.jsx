@@ -51,6 +51,7 @@ export function Border({ step, id, getActiveAnchors }) {
 			/>
 		);
 	});
+
 	return (
 		<>
 			<Line

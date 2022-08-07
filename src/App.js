@@ -43,6 +43,7 @@ const App = () => {
 	const [activeCallback, setActiveCallback] = useState(false);
 	const [deleteBtnPressed, setDeleteBtnPressed] = useState(false);
 	const [showDeleteBtn, setShowDeleteBtn] = useState(false);
+	const [deleteSelectedBtn, setDeleteSelectedBtn] = useState(false);
 	const [showInfo, setShowInfo] = useState(
 		localStorage.getItem("showInfo") !== null ? JSON.parse(localStorage.getItem("showInfo")) : true,
 	);
@@ -138,12 +139,13 @@ const App = () => {
 	};
 
 	const removeSelectedStep = (e) => {
-		if (e.key === "Delete" && selectedStep) {
+		if ((e.key === "Delete" && selectedStep) || (deleteSelectedBtn && selectedStep !== null)) {
 			let updateSteps = steps;
 
 			updateSteps = updateSteps.filter((step) => step.id != selectedStep);
 			checkWrongConnections("step", updateSteps);
 			setSteps(updateSteps);
+			setDeleteSelectedBtn(false);
 			setSelectedStep(null);
 		}
 	};
@@ -535,6 +537,16 @@ const App = () => {
 								Удалить выбранные розетки
 							</button>
 						)}
+						{selectedStep !== null && (
+							<button
+								onClick={(e) => {
+									setDeleteSelectedBtn(true);
+									removeSelectedStep(e);
+								}}
+								className="remove-all">
+								Удалить выделенный элемент
+							</button>
+						)}
 					</div>
 					{showInfo && (
 						<div className="info">
@@ -549,7 +561,7 @@ const App = () => {
 								</li>
 								<li>На появившуюся розетку можно нажать, чтобы выделить её для удаления.</li>
 								<li>Удерживайте розетку, чтобы построить путь до другой.</li>
-								<li>Чтобы перетащить квадрат, удерживайте курсор на нём.</li>
+								<li>Используйте Delete или кнопки сверху, чтобы удалять элементы</li>
 							</ul>
 						</div>
 					)}
